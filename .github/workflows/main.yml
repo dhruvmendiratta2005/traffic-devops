@@ -76,6 +76,19 @@ jobs:
         run: |
           sed -i "s|<USERNAME>|${{ env.REPO }}|g" k8s/*.yml
 
+      - name: Setup SSH Key for Ansible
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AWS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.SERVER_IP }} >> ~/.ssh/known_hosts
+      
+      - name: Run Ansible Playbook to Install k3s
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+        run: |
+          ansible-playbook -i "${{ env.SERVER_IP }}," -u ubuntu --private-key ~/.ssh/id_rsa infrastructure/ansible/install_k3s.yml
+
       - name: Copy K8s manifests to EC2
         uses: appleboy/scp-action@master
         with:
