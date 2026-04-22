@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: optimizer
-        image: ghcr.io/<USERNAME>/traffic-optimizer:latest # Replaced by CI/CD
+        image: ghcr.io/<USERNAME>/optimizer:latest # Replaced by CI/CD
         imagePullPolicy: Always
         ports:
         - containerPort: 5000

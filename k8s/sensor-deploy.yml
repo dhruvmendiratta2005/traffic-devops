@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: sensor
-        image: ghcr.io/<USERNAME>/traffic-sensor:latest # Replaced by CI/CD
+        image: ghcr.io/<USERNAME>/sensor:latest # Replaced by CI/CD
         imagePullPolicy: Always
         env:
         - name: OPTIMIZER_URL
