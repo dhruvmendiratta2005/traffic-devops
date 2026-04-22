@@ -1,0 +1,98 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Convert repository name to lowercase for Docker registry requirements
+      - name: Downcase REPO
+        run: |
+          echo "REPO=${IMAGE_PREFIX,,}" >>${GITHUB_ENV}
+
+      - name: Build and push Optimizer Image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/${{ env.REPO }}/optimizer:latest ./app/optimizer
+          docker push ${{ env.REGISTRY }}/${{ env.REPO }}/optimizer:latest
+
+      - name: Build and push Sensor Image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/${{ env.REPO }}/sensor:latest ./app/sensor
+          docker push ${{ env.REGISTRY }}/${{ env.REPO }}/sensor:latest
+
+      - name: Build and push Dashboard Image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/${{ env.REPO }}/dashboard:latest ./app/dashboard
+          docker push ${{ env.REGISTRY }}/${{ env.REPO }}/dashboard:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1 # Make sure this matches your Terraform region
+
+      - name: Get EC2 Instance IP
+        id: get-ip
+        run: |
+          SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=Traffic-Simulation-Server" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+          echo "SERVER_IP=$SERVER_IP" >> $GITHUB_ENV
+          echo "Found IP: $SERVER_IP"
+
+      - name: Downcase REPO
+        run: |
+          echo "REPO=${IMAGE_PREFIX,,}" >>${GITHUB_ENV}
+
+      - name: Replace Placeholder in K8s Manifests
+        run: |
+          sed -i "s|<USERNAME>|${{ env.REPO }}|g" k8s/*.yml
+
+      - name: Copy K8s manifests to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.AWS_SSH_KEY }}
+          source: "k8s/"
+          target: "/home/ubuntu/"
+
+      - name: Apply Kubernetes Manifests and Restart Pods
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.AWS_SSH_KEY }}
+          script: |
+            sudo k3s kubectl apply -f /home/ubuntu/k8s/
+            sudo k3s kubectl rollout restart deployment optimizer-deployment
+            sudo k3s kubectl rollout restart deployment sensor-deployment
+            sudo k3s kubectl rollout restart deployment dashboard-deployment

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adaptive Traffic Management</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a1a2e; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        h1 { color: #e94560; margin-bottom: 10px; }
+        .controls { background: #16213e; padding: 15px 30px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); display: flex; gap: 15px; align-items: center; }
+        button { background-color: #0f3460; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; }
+        button:hover { background-color: #e94560; }
+        button.active { background-color: #e94560; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .intersection { background: #16213e; padding: 20px; border-radius: 10px; text-align: center; width: 220px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center;}
+        .light { width: 50px; height: 50px; border-radius: 50%; margin: 10px auto; background-color: #333; transition: all 0.3s; }
+        .Red { background-color: #ff4757; box-shadow: 0 0 20px #ff4757; }
+        .Green { background-color: #2ed573; box-shadow: 0 0 20px #2ed573; }
+        .stats { font-size: 16px; margin-top: 10px; color: #a2a2bd;}
+        .force-btn { margin-top: 15px; background-color: #2ed573; font-size: 14px; padding: 8px 15px; display: none; }
+        .force-btn:hover { background-color: #26b360; }
+        .mode-manual .force-btn { display: block; }
+    </style>
+</head>
+<body class="mode-auto">
+    <h1>Traffic Dashboard Simulation</h1>
+    
+    <div class="controls">
+        <span id="mode-label" style="font-size: 18px; font-weight: bold; margin-right: 10px;">Mode: AUTO</span>
+        <button id="btn-auto" onclick="setMode('auto')" class="active">Auto Mode</button>
+        <button id="btn-manual" onclick="setMode('manual')">Manual Mode</button>
+    </div>
+
+    <div class="grid" id="dashboard-grid">
+        <!-- JS will populate this -->
+    </div>
+
+    <script>
+        const API_BASE = `http://${window.location.hostname}:5000`;
+        let currentMode = 'auto';
+
+        async function setMode(mode) {
+            try {
+                await fetch(`${API_BASE}/set_mode`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mode: mode})
+                });
+                fetchStatus();
+            } catch (e) { console.error(e); }
+        }
+
+        async function forceGreen(intersection) {
+            try {
+                await fetch(`${API_BASE}/override_light`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({intersection: intersection})
+                });
+                fetchStatus();
+            } catch (e) { console.error(e); }
+        }
+
+        async function fetchStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/status`);
+                const data = await response.json();
+                
+                // Update Mode UI
+                currentMode = data.mode;
+                document.body.className = `mode-${currentMode}`;
+                document.getElementById('mode-label').innerText = `Mode: ${currentMode.toUpperCase()}`;
+                
+                if(currentMode === 'auto') {
+                    document.getElementById('btn-auto').classList.add('active');
+                    document.getElementById('btn-manual').classList.remove('active');
+                } else {
+                    document.getElementById('btn-manual').classList.add('active');
+                    document.getElementById('btn-auto').classList.remove('active');
+                }
+
+                // Update Grid
+                const grid = document.getElementById('dashboard-grid');
+                grid.innerHTML = '';
+
+                for (const [direction, info] of Object.entries(data.intersections)) {
+                    grid.innerHTML += `
+                        <div class="intersection">
+                            <h2 style="margin: 0; color: #fff;">${direction}</h2>
+                            <div class="light ${info.light}"></div>
+                            <div class="stats">Cars Waiting: <strong style="color:white; font-size:18px;">${info.cars}</strong></div>
+                            <div class="stats">Calculated Green Time: ${info.duration}s</div>
+                            <button class="force-btn" onclick="forceGreen('${direction}')">Force Green</button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error("Error fetching traffic status:", error);
+            }
+        }
+
+        setInterval(fetchStatus, 2000);
+        fetchStatus();
+    </script>
+</body>
+</html>

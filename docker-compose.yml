@@ -1,0 +1,27 @@
+services:
+  optimizer:
+    build: ./app/optimizer
+    ports:
+      - "5000:5000"
+    networks:
+      - traffic-net
+
+  sensor:
+    build: ./app/sensor
+    environment:
+      - OPTIMIZER_URL=http://optimizer:5000/update_traffic
+    depends_on:
+      - optimizer
+    networks:
+      - traffic-net
+
+  dashboard:
+    build: ./app/dashboard
+    ports:
+      - "8088:80"
+    networks:
+      - traffic-net
+
+networks:
+  traffic-net:
+    driver: bridge

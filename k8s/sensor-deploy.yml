@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sensor-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sensor
+  template:
+    metadata:
+      labels:
+        app: sensor
+    spec:
+      containers:
+      - name: sensor
+        image: ghcr.io/<USERNAME>/traffic-sensor:latest # Replaced by CI/CD
+        imagePullPolicy: Always
+        env:
+        - name: OPTIMIZER_URL
+          value: "http://optimizer-service:5000/update_traffic"

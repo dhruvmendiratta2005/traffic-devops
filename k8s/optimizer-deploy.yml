@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: optimizer-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: optimizer
+  template:
+    metadata:
+      labels:
+        app: optimizer
+    spec:
+      containers:
+      - name: optimizer
+        image: ghcr.io/<USERNAME>/traffic-optimizer:latest # Replaced by CI/CD
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: optimizer-service
+spec:
+  selector:
+    app: optimizer
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: LoadBalancer
