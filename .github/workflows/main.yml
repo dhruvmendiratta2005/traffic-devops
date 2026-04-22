@@ -109,3 +109,19 @@ jobs:
             sudo k3s kubectl rollout restart deployment optimizer-deployment
             sudo k3s kubectl rollout restart deployment sensor-deployment
             sudo k3s kubectl rollout restart deployment dashboard-deployment
+
+      - name: Print K8s Diagnostics
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.AWS_SSH_KEY }}
+          script: |
+            echo "========== POD STATUS =========="
+            sudo k3s kubectl get pods -A
+            echo "========== RECENT EVENTS =========="
+            sudo k3s kubectl get events --sort-by='.metadata.creationTimestamp' | tail -n 20
+            echo "========== DASHBOARD LOGS =========="
+            sudo k3s kubectl logs deployment/dashboard-deployment --tail=30 || true
+            echo "========== OPTIMIZER LOGS =========="
+            sudo k3s kubectl logs deployment/optimizer-deployment --tail=30 || true
